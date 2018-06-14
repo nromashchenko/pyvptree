@@ -1,4 +1,4 @@
-#cython: language_level=3, boundscheck=False, infer_types=True, c_string_type=unicode, c_string_encoding=utf8, profile=True
+#cython: language_level=3, boundscheck=False, infer_types=True, c_string_type=unicode, c_string_encoding=utf8
 from typing import TypeVar, List, Callable, Tuple
 
 #from Cython.Compiler.Options import directive_defaults
@@ -141,7 +141,7 @@ class BaseVpTree:
         node_queue.push_back(0)
         neighbors = queue.PriorityQueue()
 
-        while len(node_queue) > 0:
+        while node_queue.size() > 0:
             node_index = node_queue.back()
             node_queue.pop_back()
             if node_index == -1:
@@ -151,11 +151,11 @@ class BaseVpTree:
             vantage_point = self.objects[int(node_row[VP_POINT_IDX])]
             distance = self.distance_func(point, vantage_point)
 
-            if len(neighbors.queue) < count:
+            if neighbors.queue.size() < count:
                 neighbors.put((-distance, vantage_point))
             elif distance < tau:
                 neighbors.put((-distance, vantage_point))
-                if len(neighbors.queue) > count:
+                if neighbors.queue.size() > count:
                     neighbors.get()
 
                 tau, _ = neighbors.queue[0]
