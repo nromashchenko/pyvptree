@@ -8,8 +8,8 @@ from typing import TypeVar, List, Callable, Tuple
 import numpy as np
 cimport numpy as np
 from libcpp.vector cimport vector
-
-import queue
+from libcpp.deque cimport deque
+from libcpp.algorithm cimport sort as std_sort
 import random
 
 cdef:
@@ -127,19 +127,19 @@ class BaseVpTree:
 
     def search(self, point: A, count: int) -> Tuple[np.array, np.array]:
         result = self._search_impl(point, count)
-        result = sorted([(-value, point) for value, point in result])
+        result = sorted([(-value, self.objects[int(point_idx)]) for value, point_idx in result])
         values, points = zip(*result)
         return np.array(values), np.array(points)
 
     def _search_impl(self, point: A, count: int) -> list:
         cdef:
-            int node_index = -1
+            int node_index = -1, vp_index = -1
             float tau = np.inf, distance, median
             vector[int] node_queue
-            np.ndarray[double, ndim=1] vantage_point, node_row
+            deque[vector[float]] neighbors
+            np.ndarray[double, ndim=1] node_row
 
         node_queue.push_back(0)
-        neighbors = queue.PriorityQueue()
 
         while node_queue.size() > 0:
             node_index = node_queue.back()
@@ -148,18 +148,25 @@ class BaseVpTree:
                 continue
 
             node_row = self.tree_data[node_index]
-            vantage_point = self.objects[int(node_row[VP_POINT_IDX])]
-            distance = self.distance_func(point, vantage_point)
+            vp_index = int(node_row[VP_POINT_IDX])
+            distance = self.distance_func(point, self.objects[vp_index])
 
-            if neighbors.queue.size() < count:
-                neighbors.put((-distance, vantage_point))
+            if neighbors.size() < count:
+                neighbors.push_back(vector[float]())
+                neighbors.back().push_back(-distance)
+                neighbors.back().push_back(vp_index)
+                std_sort(neighbors.begin(), neighbors.end())
             elif distance < tau:
-                neighbors.put((-distance, vantage_point))
-                if neighbors.queue.size() > count:
-                    neighbors.get()
+                neighbors.push_back(vector[float]())
+                neighbors.back().push_back(-distance)
+                neighbors.back().push_back(vp_index)
+                std_sort(neighbors.begin(), neighbors.end())
 
-                tau, _ = neighbors.queue[0]
-                tau *= -1
+                if neighbors.size() > count:
+                    neighbors.pop_front()
+
+                #tau, _ = neighbors.queue[0]
+                tau = neighbors[0][0] * -1
 
             median = node_row[MEDIAN_IDX]
             if not median:
@@ -176,4 +183,4 @@ class BaseVpTree:
                 if distance >= median - tau:
                     node_queue.push_back(int(node_row[RIGHT_CHILD_IDX]))
 
-        return neighbors.queue
+        return [x for x in neighbors]
